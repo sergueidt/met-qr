@@ -5910,7 +5910,7 @@ function App() {
   const [screen, setScreen] = useState('detect'); // detect | welcome | clientLogin | adminLogin | app
   const [urlCode] = useState(()=>getUrlCode());
   const [firebaseReady, setFirebaseReady] = useState(false);
-  const [autoBackupToast, setAutoBackupToast] = useState(false);
+
 
   // setDb: actualiza estado local Y guarda en Firestore (nube)
   const setDb = React.useCallback((updater) => {
@@ -6035,7 +6035,7 @@ function App() {
   const loginAdmin = (email,pass)=>{
     const u=db.users.find(u=>u.role==='admin'&&u.email===email&&u.password===pass);
     if (!u) return false;
-    setSession({userId:u.id, loginTime: Date.now()});
+    setSession({userId:u.id});
     setScreen('app');
     return true;
   };
@@ -6546,33 +6546,9 @@ function App() {
     }));
   };
 
-  // ── Auto-backup 30s después del login del admin ──
+  // Auto-backup local eliminado — todos los datos viven únicamente en Firestore (nube)
   const dbRef = React.useRef(db);
   React.useEffect(() => { dbRef.current = db; }, [db]);
-
-  React.useEffect(() => {
-    if (!session || !session.loginTime) return;
-    const currentUser2 = db.users.find(u => u.id === session.userId);
-    if (!currentUser2 || currentUser2.role !== 'admin') return;
-    const elapsed = Date.now() - session.loginTime;
-    const delay = Math.max(0, 30000 - elapsed);
-    const t = setTimeout(() => {
-      const snap = dbRef.current;
-      const now = new Date();
-      const label = now.toLocaleString('es-PY', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
-      const blob = new Blob([JSON.stringify({version:1, timestamp:now.getTime(), ...stripImages(snap)}, null, 2)], {type:'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `MRB_Backup_${label.replace(/[/:, ]/g,'-')}_Auto.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setAutoBackupToast(true);
-      setTimeout(() => setAutoBackupToast(false), 5000);
-    }, delay);
-    return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session && session.loginTime]);
 
   // SCREENS
   if (screen==='detect') return null;
@@ -6586,21 +6562,6 @@ function App() {
     return (
       <>
         <OfflineBanner/>
-        {autoBackupToast && (
-          <div style={{
-            position:'fixed',bottom:'calc(var(--safe-bot) + 80px)',left:'50%',
-            transform:'translateX(-50%)',zIndex:9999,
-            background:'rgba(20,20,20,.97)',border:'1px solid rgba(68,204,119,.4)',
-            borderRadius:'var(--r-sm)',padding:'clamp(12px,2.5vw,18px) clamp(18px,4vw,28px)',
-            color:'var(--success)',fontFamily:"'Barlow Condensed',sans-serif",
-            fontSize:'var(--text-sm)',fontWeight:700,letterSpacing:'.04em',
-            boxShadow:'0 4px 24px rgba(0,0,0,.6)',
-            display:'flex',alignItems:'center',gap:'10px',
-            animation:'toastIn .35s cubic-bezier(.16,1,.3,1)',
-          }}>
-            📥 Backup automático descargado correctamente
-          </div>
-        )}
         {role==='client'&&<ClientDashboard user={currentUser} db={db} onLogout={logout} onTrackNewsView={trackNewsView} onCheckin={checkin} onRedeemCouponCredits={redeemCouponWithCredits} onUpdatePhoto={(photo)=>setDb(prev=>({...prev,users:prev.users.map(u=>u.id===currentUser.id?{...u,photo}:u)}))}/>}
         {role==='admin'&&<AdminDashboard user={currentUser} db={db} onLogout={logout}
           onAddMovement={addMovement} onCreateStudent={createStudent} onEditMovement={editMovement}
